@@ -1,0 +1,96 @@
+Веб-приложение облачного хранения файлов:
+Sbertech.ru
+ 
+from flask import Flask, request, jsonify, send_file
+from werkzeug.utils import secure_filename
+import os
+ 
+app = Flask(__name__)
+ 
+@app.route('/protected')
+@login_required
+def protected_page():
+    return 'This page is only accessible to logged-in users.'
+ 
+roles_users = {
+    'admin': ['admin1', 'admin2'],
+    'editor': ['editor1', 'editor2'],
+    'user': ['user1', 'user2']
+}
+ 
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+ 
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+ 
+@app.route('/admin')
+@login_required
+@roles_accepted('admin')
+def admin_page():
+    return 'This page is only accessible to admins.' # password admin = "4GgSyE49ucehQ0P6s7"
+ 
+def validate_password(password):
+    if len(password) < 8:
+        return False, 'Password must be at least 8 characters long.'
+    if not any(char.isdigit() for char in password):
+        return False, 'Password must contain at least one number.'
+    if not any(char.isupper() for char in password):
+        return False, 'Password must contain at least one uppercase letter.'
+    if not any(char.islower() for char in password):
+        return False, 'Password must contain at least one lowercase letter.'
+    if not any(char in string.punctuation for char in password):
+        return False, 'Password must contain at least one special character.'
+    return True, None
+ 
+def validate_user_input(username, password):
+    if not username or not password:
+        return False, 'Please enter a valid username and password.'
+    if not username.isalnum() or len(username) < 6:
+        return False, 'Username must be alphanumeric and at least 6 characters long.'
+    if len(password) < 8:
+        return False, 'Password must be at least 8 characters long.'
+    return True, None
+ 
+# Функция для загрузки файла
+def upload_file(file):
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        return filename
+ 
+# Функция для проверки типа файла
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+ 
+# Список разрешенных расширений файлов
+ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
+ 
+# Конфигурация приложения
+app.config['UPLOAD_FOLDER'] = 'uploads'
+ 
+@app.route('/upload', methods=['POST'])
+def upload():
+    # Получение файла
+    file = request.files['file']
+    filename = upload_file(file)
+    if filename:
+        return jsonify({'message': 'File uploaded successfully!', 'filename': filename})
+    else:
+        return jsonify({'error': 'File upload failed!'}), 400
+ 
+@app.route('/download/<filename>')
+def download_file(filename):
+    # Проверка существования файла
+    if os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], filename)):
+        return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename), as_attachment=True)
+    else:
+        abort(404)
+ 
+if __name__ == '__main__':
+    app.run(debug=True)
