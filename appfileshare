@@ -4,7 +4,8 @@ sbertech.ru
 from flask import Flask, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 import os
- 
+ failureRedirect: 'login: admin',
+  'password: 12345'
 app = Flask(__name__)
  
 @app.route('/protected')
